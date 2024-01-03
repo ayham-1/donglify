@@ -15,9 +15,9 @@ DONGLE_LOCKED_BOOT_UUID = "locked_boot_uuid"
 DONGLE_UNLOCKED_BOOT_UUID = "unlocked_boot_uuid"
 
 DONGLE_INSTALL_KERNEL_NAME = "kernel_name"
-DONGLE_CRYPTOKEYFILE = "cryptokeyfile"
-DONGLE_HOOKS_ADDED = "hooks_added"
-DONGLE_UCODE = "ucode"
+DONGLE_INSTALL_CRYPTOKEYFILE = "cryptokeyfile"
+DONGLE_INSTALL_HOOKS_ADDED = "hooks_added"
+DONGLE_INSTALL_UCODE = "ucode"
 
 state_ask_cmd = False
 
@@ -25,7 +25,8 @@ dongle_config = None
 
 dongle_installs_configs = {}
 
-current_install = None
+def good(msg):
+    print(colored(msg, "green"))
 
 def disk_exists(path):
      try:
@@ -57,9 +58,13 @@ def execute(cmd, desc="", ask=False, needed=True, dry_run=False):
                 sys.exit(1)
             return
     else:
-        print(colored("executing: ", "green", attrs=["bold"]) + colored(cmd, "yellow", attrs=["bold"]))
+        print(colored("executing: ", "green", attrs=["bold"]) + colored(cmd, "yellow", attrs=["bold"]) + \
+                colored(f' # {desc}', "dark_grey"))
 
-    subprocess.run(cmd, shell=True)
+    proc = subprocess.run(cmd, shell=True)
+    if proc.returncode != 0 and needed:
+        print(f'Return code of {proc.returncode} was not 0, exiting')
+        sys.exit(proc.returncode)
 
 def locate_and_load_config(dev_name):
     print("attempting to locate dongle.ini")
@@ -68,7 +73,7 @@ def locate_and_load_config(dev_name):
     __mount_mapper("dongleboot", "/boot")
 
     if not pathlib.Path("/boot/dongle.ini").exists():
-        print("/boot/dongle.ini does not exist, choose another device partition or run dongle init")
+        print(colored("/boot/dongle.ini does not exist, choose another device partition or run dongle init", "red"))
         sys.exit(1)
 
     config = configparser.ConfigParser()
@@ -94,6 +99,19 @@ def locate_and_load_config(dev_name):
         sys.exit(1)
 
     dongle_mount_all()
+
+def dongle_save_config():
+    # assumes all mounts are right and just writes config into /boot/dongle.ini
+    global dongle_config
+    global dongle_installs_configs
+    config = configparser.ConfigParser()
+    config.read_dict({"dongle": dongle_config})
+
+    for name, install_config in dongle_installs_configs.items():
+        config.read_dict({name: install_config})
+
+    with open("/boot/dongle.ini", 'w') as f:
+        config.write(f, space_around_delimiters=True)
 
 def __unlock(uuid, cryptname):
     if not disk_exists(f'/dev/mapper/{cryptname}'):
@@ -132,9 +150,17 @@ def __ensure_local_dirs_mountpoint_only():
         cmd = 'chattr +i /boot'
         execute(cmd, desc=f'make host /efi only a mountpoint', needed=False, ask=True)
 
+def __get_uuid_by_dev(dev_name):
+    cmd = f'lsblk -n -oNAME,UUID {dev_name} --raw'
+    return subprocess.run(cmd, shell=True, capture_output=True).stdout.decode("utf-8") \
+            .strip().split('\n')[0].split(' ')[-1].strip()
+
 def __select_dongle_install():
     global dongle_installs_configs
     names = dongle_installs_configs.keys()
+
+    if len(names) == 0:
+        return ""
 
     print("Select from available dongle install names:\n\t" + \
           colored(' '.join(names), 'green'))
@@ -145,7 +171,7 @@ def __pacman_install_pkgs():
     cmd = 'pacman -S grub'
     subprocess.run(cmd, shell=True)
 
-def __kernel_config_current_sys():
+def __kernel_config_current_sys(current_install):
     with open("templates/mkinitcpio.conf", "r") as mkinitcpioconf:
         template = mkinitcpioconf.read()
         template = template.replace("$CRYPTO_KEYFILE", current_install["cryptokeyfile"])
@@ -173,7 +199,7 @@ def __kernel_config_current_sys():
     cmd = f"mv -f /boot/{UCODE_NAME}.img {new_ucode_image_path}"
     execute(cmd, desc=f'rename microcode image', needed=True, ask=True)
 
-    print("kernel & initramfs should be correctly positioned in /boot for detection by 'grub-mkconfig' now")
+    good("kernel & initramfs should be correctly positioned in /boot for detection by 'grub-mkconfig' now")
 
 def __grub_config_current_sys():
     cmd = "grub-mkconfig -o /boot/grub/grub.cfg"
@@ -184,32 +210,160 @@ def dongle_mount_all():
     __mount(dongle_config["efi_uuid"], "/efi")
     __unlock(dongle_config["locked_boot_uuid"], "dongleboot")
     __mount(dongle_config["unlocked_boot_uuid"], "/boot")
-    print("mounted all necessarily points from donglified usb")
+    good("mounted all necessarily points from donglified usb")
 
 def dongle_umount_all():
     __umount("/efi")
     __umount("/boot")
     __lock("dongleboot")
+    __lock("donglepersist")
 
-    print("system mounts are now clean, safe to remove dongle")
+    good("system mounts are now clean, safe to remove dongle")
 
-def dongle_init_no_part():
-    pass
-#echo "Now initializing new dongle with preconfigured partition scheme"
-    #echo "We assume all specified partitions in the following questionaire to be already formatted!"
-    #interactive_dongle_config
+def dongle_init_partition(dev_name):
+    print(colored(f"Acknowledge that the following procedure *will* destroy ALL data on '{dev_name}'\n"
+                  "YOU WILL NOT BE ASKED AGAIN", 'red', attrs=["reverse", "blink", "bold"]))
+    ack = input("Acknowledge by writing the following in caps: DESTROY MY DONGLE\n")
+    if ack != "DESTROY MY DONGLE":
+        print("Stopping procedure by user command. No data was lost.")
+        print("Farewell.")
+        sys.exit(0)
+
+    cmd = f'parted {dev_name} mklabel gpt'
+    execute(cmd, desc="set USB partition table as GPT")
+
+    cmd = f'lsblk -n -oNAME,SIZE {dev_name}'
+    dongle_size = str(subprocess.run(cmd, shell=True, capture_output=True).stdout.decode('utf-8')) \
+            .strip().split('  ')[1].replace("G", "")
+    print("dongle has size: " + dongle_size + "GB")
+
+    dongle_isos_size = int(0.5 * float(dongle_size) * 1024)
+    dongle_persistent_size = int(0.5 * float(dongle_size) * 1024)
+
+    print("recommended partition scheme: ")
+    print("DONGLE_EFI partition: 256 MB")
+    print("DONGLE_BOOT partition: 2048 MB")
+    print("DONGLE_ISOs partition: " + str(dongle_isos_size) + " MB")
+    print("DONGLE_PERSISTENT partition: " + str(dongle_persistent_size) + " MB")
+
+    iso_size = input("What would you like to have for ISO partition size in MB? [empty for same] ")
+    persistent_size = input("What would you like to have for persistent partition size in MB? [empty for same] " )
+
+    if iso_size != "":
+        dongle_isos_size = int(iso_size)
+    if persistent_size != "":
+        dongle_persistent_size = int(persistent_size)
+
+    current_offset = 8
+    parted = "parted -a optimal"
+    cmd = f'{parted} {dev_name} mkpart "DONGLE_EFI" fat16 {str(current_offset)}MB 256MB'
+    execute(cmd, desc="create efi partition on dongle", needed=True, ask=False)
+
+    cmd = f'{parted} {dev_name} set 1 esp on'
+    execute(cmd, desc="mark /efi as esp", needed=True, ask=False)
+
+    current_offset += 256 + 8
+    cmd = f'{parted} {dev_name} mkpart "DONGLE_BOOT" {str(current_offset)}MB {str(2048 + current_offset)}MB'
+    execute(cmd, desc="create boot partition on dongle", needed=True, ask=False)
+
+    cmd = f'{parted} {dev_name} set 2 boot on'
+    execute(cmd, desc="mark /boot as boot", needed=True, ask=False)
+
+    current_offset += 2048 + 8
+    if iso_size != 0:
+        cmd = f'{parted} {dev_name} mkpart "DONGLE_ISOs" {str(current_offset)}MB {str(dongle_isos_size + current_offset)}MB'
+        execute(cmd, desc="create ISOs partition on dongle", needed=True, ask=False)
+        current_offset += dongle_isos_size + 8
+
+    if persistent_size != 0:
+        cmd = f'{parted} {dev_name} mkpart "DONGLE_PERSISTENT" {str(current_offset)}MB 100%'
+        execute(cmd, desc="create persistent partition on dongle", needed=True, ask=False)
+
+    cmd = f'mkfs.vfat -n DONGLE_EFI  -F 16 {dev_name}1'
+    execute(cmd, desc="format DONGLE_EFI as FAT16", needed=True, ask=False)
+
+    cmd = f'cryptsetup luksFormat --type luks1 {dev_name}2'
+    execute(cmd, desc="encrypt dongle's /boot partition, user will be asked for passphrase automatically", needed=True, ask=False)
+
+    __unlock_disk(f'{dev_name}2', "dongleboot")
+
+    cmd = f'mkfs.ext4 /dev/mapper/dongleboot'
+    execute(cmd, desc="format dongle's /boot partition as ext4", needed=True, ask=False)
+
+    cmd = f'mkfs.ext4 {dev_name}3'
+    execute(cmd, desc="format dongle's ISOs partition as ext4", needed=False, ask=False)
+
+    cmd = f'cryptsetup luksFormat --type luks2 {dev_name}4'
+    execute(cmd, desc="encrypt dongle's persistent partition, user will be asked for passphrase automatically", needed=False, ask=False)
+     
+    __unlock_disk(f'{dev_name}4', "donglepersist")
+    cmd = f'mkfs.ext4 /dev/mapper/donglepersist'
+    execute(cmd, desc="format dongle's persistent partition", needed=False, ask=False)
+
+    # find uuids and fill into /boot/dongle.ini
+    global dongle_config
+    dongle_config = {}
+    dongle_config["efi_uuid"] = __get_uuid_by_dev(f'{dev_name}1')
+    dongle_config["locked_boot_uuid"] = __get_uuid_by_dev(f'{dev_name}2')
+    dongle_config["unlocked_boot_uuid"] = __get_uuid_by_dev(f'/dev/mapper/dongleboot')
+
+    # grub-install
+    dongle_mount_all()
+    cmd = f'grub-install --target=x86_64-efi --efi-directory=/efi --bootloader-id=GRUB --removable'
+    execute(cmd, desc="install grub into dongle", needed=True, ask=True)
+
+    dongle_mount_all()
+    dongle_save_config()
+
+    subprocess.run("lsblk -f", shell=True)
+    good("dongle's partition initialization done")
+    print("you are recommended to start adding system installs onto your dongle")
+    sys.exit(0)
 
 def dongle_add_current_system():
+    print("Fill configs for current system:")
+    
+    name = input("install name, shown on GRUB: ")
+    current_install = {}
+    current_install["name"] = name
+    current_install[DONGLE_INSTALL_KERNEL_NAME] = input("kernel package name [linux/-hardened/-lts/..]: ")
+    current_install[DONGLE_INSTALL_UCODE] = input("microcode package to be installed [intel-ucode/amd-ucode]: ")
+    current_install[DONGLE_INSTALL_CRYPTOKEYFILE] = input("encryption key file to be loaded into initramfs [optional]: ")
+    current_install[DONGLE_INSTALL_HOOKS_ADDED] = input("hooks to be added to initramfs [optional]: ")
+
+    global dongle_installs_configs
+    dongle_installs_configs[name] = current_install
+    dongle_save_config()
+
     print("adding current host system to donglify")
+    dongle_umount_all()
     __ensure_local_dirs_mountpoint_only()
     dongle_mount_all()
-    __kernel_config_current_sys()
+    __kernel_config_current_sys(current_install)
+    __grub_config_current_sys()
+
+def dongle_reinstall_system():
+    name = __select_dongle_install()
+    if name == "":
+        print("no available system configurations to reinstall")
+        return
+
+    global dongle_installs_configs
+    current_install = dongle_installs_configs[name]
+    current_install["name"] = name
+
+    dongle_mount_all()
+    __kernel_config_current_sys(current_install)
     __grub_config_current_sys()
 
 def dongle_list_installs():
+    global dongle_installs_configs
+    if len(dongle_installs_configs) == 0:
+        print("no system installs on dongle")
+        return
+
     print("listing registered installs on dongle")
 
-    global dongle_installs_configs
     for name, config in dongle_installs_configs.items():
         print()
         print(f'name: {name}')
@@ -222,6 +376,8 @@ def dongle_list_installs():
 
 def dongle_safe_update():
     name = __select_dongle_install()
+    if name == "":
+        print("no available installs, try the 'add' command first")
 
     global current_install
     global dongle_installs_configs
@@ -236,11 +392,16 @@ def dongle_safe_update():
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
 
-donglify_cmds = ['mount', 'unmount', 'add', 'update', 'status', 'list']
+donglify_cmds = ['mount', 'unmount', 'add', 'reinstall', 'update', 'status', 'list']
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2 or not '/dev/' in sys.argv[1] or not len(sys.argv[1]) >= len('/dev/xyz0'):
-        print("Usage: donglify /dev/<name of usb>[index of encrypted dongleboot]")
+    usage = "Usage: donglify /dev/<name of usb>[index of encrypted dongleboot]\n" + \
+            "       donglify init /dev/<name of usb>"
+
+    if len(sys.argv) == 3 and "init" == sys.argv[1] and '/dev/' in sys.argv[2] and len(sys.argv[2]) == len('/dev/xyz'):
+        dongle_init_partition(sys.argv[2])
+    elif len(sys.argv) != 2 or not '/dev/' in sys.argv[1] or not len(sys.argv[1]) >= len('/dev/xyz0'):
+        print(usage)
         sys.exit(1)
 
     def keyboard_interrupt_handler(x, y):
@@ -248,7 +409,7 @@ if __name__ == "__main__":
         print()
         print("Farewell, Traveller.")
         sys.exit(1)
-    signal.signal( signal.SIGINT, keyboard_interrupt_handler)
+    signal.signal(signal.SIGINT, keyboard_interrupt_handler)
 
     print("Welcome to donglify!")
 
@@ -256,6 +417,7 @@ if __name__ == "__main__":
 
     try:
         while 1:
+            print(colored("available commands: " + ' '.join(donglify_cmds), 'dark_grey'))
             user_input = prompt("donglify> ", completer=WordCompleter(donglify_cmds, ignore_case=True))
             if user_input == 'status':
                 subprocess.run("lsblk", shell=True)
@@ -269,6 +431,8 @@ if __name__ == "__main__":
                 subprocess.run("lsblk", shell=True)
             elif user_input == 'add':
                 dongle_add_current_system()
+            elif user_input == 'reinstall':
+                dongle_reinstall_system()
             elif user_input == 'update':
                 dongle_safe_update()
             else:

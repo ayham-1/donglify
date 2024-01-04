@@ -11,12 +11,18 @@ from prompt_toolkit.completion import WordCompleter
 DONGLE_EFI_UUID = "efi_uuid"
 DONGLE_LOCKED_BOOT_UUID = "locked_boot_uuid"
 DONGLE_UNLOCKED_BOOT_UUID = "unlocked_boot_uuid"
+DONGLE_PART_ISO_UUID = "part_iso_uuid"
 
+DONGLE_INSTALL_NAME = "name"
 DONGLE_INSTALL_KERNEL_NAME = "kernel_name"
 DONGLE_INSTALL_KERNEL_ARGS = "kernel_args"
 DONGLE_INSTALL_CRYPTOKEYFILE = "cryptokeyfile"
 DONGLE_INSTALL_HOOKS_ADDED = "hooks_added"
 DONGLE_INSTALL_UCODE = "ucode"
+
+DONGLE_ISO_NAME = "name"
+DONGLE_ISO_FILE = "file_name"
+DONGLE_ISO_LOOPBACKCFG = "loopback_cfg_location"
 
 
 class DonglifyState(object):
@@ -24,6 +30,47 @@ class DonglifyState(object):
 
     config = {}
     installs_configs = {}
+
+    isos = {}
+
+    parser = None
+
+
+def _read():
+    parser = configparser.ConfigParser()
+    parser.read("/boot/dongle.ini")
+
+    for name in parser.sections():
+        if name == "dongle":
+            DonglifyState.config = parser[name]
+        elif "iso." in name:
+            DonglifyState.isos[name] = parser[name]
+        else:
+            DonglifyState.installs_configs[name] = parser[name]
+
+    print(colored("Please review that this is the correct dongle config contents and that there are no alterations from"
+                  " previous access.", "yellow"))
+    print()
+    parser.write(sys.stdout, space_around_delimiters=True)
+
+    print("Looks good?")
+    if not does_user_accept():
+        print("dongle.ini has been rejected by user command.")
+        sys.exit(1)
+
+
+def _write():
+    parser = configparser.ConfigParser()
+    parser.read_dict({"dongle": DonglifyState.config})
+
+    for name, install_config in DonglifyState.installs_configs.items():
+        parser.read_dict({name: install_config})
+
+    for name, iso_config in DonglifyState.isos.items():
+        parser.read_dict({name: iso_config})
+
+    with open("/boot/dongle.ini", 'w') as f:
+        parser.write(f, space_around_delimiters=True)
 
 
 def good(msg):
@@ -87,40 +134,17 @@ def locate_and_load_config(dev_name):
             "/boot/dongle.ini does not exist, choose another device partition or run dongle init", "red"))
         sys.exit(1)
 
-    config = configparser.ConfigParser()
-    config.read("/boot/dongle.ini")
-
-    DonglifyState.config = config["dongle"]
-
-    for key in config.sections():
-        if key == "dongle":
-            continue
-
-        DonglifyState.installs_configs[key] = config[key]
-
-    print(colored("Please review that this is the correct dongle config contents and that there are no alterations from"
-                  " previous access.", "yellow"))
-    print()
-    config.write(sys.stdout, space_around_delimiters=True)
-
-    print("Looks good?")
-    if not does_user_accept():
-        print("dongle.ini has been rejected by user command.")
-        sys.exit(1)
+    _read()
 
     dongle_mount_all()
 
 
 def dongle_save_config():
     # assumes all mounts are right and just writes config into /boot/dongle.ini
-    config = configparser.ConfigParser()
-    config.read_dict({"dongle": DonglifyState.config})
 
-    for name, install_config in DonglifyState.installs_configs.items():
-        config.read_dict({name: install_config})
+    _write()
 
-    with open("/boot/dongle.ini", 'w') as f:
-        config.write(f, space_around_delimiters=True)
+    os.chmod("/boot/dongle.ini", 600)
 
 
 def unlock(uuid, cryptname):
@@ -145,6 +169,8 @@ def lock(luksname):
 
 
 def mount(uuid, dest):
+    os.makedirs(dest, exist_ok=True)
+
     if not os.path.ismount(f'{dest}'):
         cmd = f'mount UUID={uuid} {dest}'
         execute(
@@ -197,12 +223,14 @@ def dongle_mount_all():
     mount(DonglifyState.config["efi_uuid"], "/efi")
     unlock(DonglifyState.config["locked_boot_uuid"], "dongleboot")
     mount(DonglifyState.config["unlocked_boot_uuid"], "/boot")
+    mount(DonglifyState.config["part_iso_uuid"], "/mnt/iso")
     good("mounted all necessarily points from donglified usb")
 
 
 def dongle_umount_all():
     umount("/efi")
     umount("/boot")
+    umount("/mnt/iso")
     lock("dongleboot")
     lock("donglepersist")
 

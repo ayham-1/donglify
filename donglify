@@ -1,7 +1,7 @@
 #!/bin/python3
 
 from prompt_toolkit import prompt
-from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit.completion import NestedCompleter
 import os
 import sys
 import subprocess
@@ -15,6 +15,7 @@ from termcolor import colored
 from donglify_lib import *
 from donglify_mkinitcpio import *
 from donglify_grub import *
+from donglify_isos import *
 
 
 def dongle_init_partition(dev_name):
@@ -112,7 +113,8 @@ def dongle_init_partition(dev_name):
     DonglifyState.config["efi_uuid"] = get_uuid_by_dev(f'{dev_name}1')
     DonglifyState.config["locked_boot_uuid"] = get_uuid_by_dev(f'{dev_name}2')
     DonglifyState.config["unlocked_boot_uuid"] = get_uuid_by_dev(
-        f'/dev/mapper/dongleboot')
+        "/dev/mapper/dongleboot")
+    DonglifyState.config["part_iso_uuid"] = get_uuid_by_dev(f'{dev_name}3')
 
     # grub-install
     dongle_mount_all()
@@ -204,8 +206,15 @@ def dongle_safe_update():
     kernel_config_current_sys()
 
 
-donglify_cmds = ['mount', 'unmount', 'add',
-                 'reinstall', 'update', 'status', 'list']
+donglify_iso_cmds = {
+    "list": None,
+    "add": None,
+    "templates": None
+}
+
+donglify_cmds = {'mount': None, 'unmount': None, 'add': None,
+                 'reinstall': None, 'update': None, 'status': None, 'list': None,
+                 "iso": donglify_iso_cmds}
 
 if __name__ == "__main__":
     usage = "Usage: donglify /dev/<name of usb>[index of encrypted dongleboot]\n" + \
@@ -232,8 +241,8 @@ if __name__ == "__main__":
         while 1:
             print(colored("available commands: " +
                   ' '.join(donglify_cmds), 'dark_grey'))
-            user_input = prompt("donglify> ", completer=WordCompleter(
-                donglify_cmds, ignore_case=True))
+            user_input = prompt("donglify> ", completer=NestedCompleter.from_nested_dict(
+                donglify_cmds))
             if user_input == 'status':
                 subprocess.run("lsblk", shell=True)
             elif user_input == 'list':
@@ -250,7 +259,14 @@ if __name__ == "__main__":
                 dongle_reinstall_system()
             elif user_input == 'update':
                 dongle_safe_update()
+            elif user_input == 'iso list':
+                dongle_iso_list()
+            elif 'iso add' in user_input:
+                dongle_iso_add()
+            elif user_input == 'iso templates':
+                dongle_iso_list_templates()
             else:
+                print(f'command {user_input} not recognized')
                 print("Commands: " + " ".join(donglify_cmds))
     except (KeyboardInterrupt, EOFError):
         print()
@@ -304,4 +320,14 @@ if __name__ == "__main__":
 #   run update command
 #   run __kernel_config_current_sys()
 #
+# to check for loopback.cfg for an ISO:
+# mount -o loop <iso> /mnt
+# ls /mnt/boot/grub/ # <- should be in this directory as 'loopback.cfg'
 #
+# linux ISOs loopback.cfg status [done at 2024-01-04]:
+#       - archlinux, and arch-based that don't deviate in their ISO builds
+#       - grml64-full
+#       - ParrotOS-security
+#       - nixos-gnome
+#       - [x] KaliOS
+#       - [x] Fedora

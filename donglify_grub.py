@@ -26,18 +26,24 @@ def grub_config_install():
 
     grubcfg = ""
 
-    with open("grub.d/header.cfg", "r") as header:
-        grubcfg += header.read()
+    with open("grub.d/header.cfg", "r") as template:
+        grubcfg += template.read()
 
     for name, config in DonglifyState.installs_configs.items():
-        with open("grub.d/system.cfg", "r") as header:
-            grubcfg += header.read().replace("{name}", name).replace(
+
+        with open("grub.d/system.cfg", "r") as template:
+            grubcfg += template.read().replace("{name}", name).replace(
                 "{kernel_args}", config["kernel_args"])
 
+    for name, iso in DonglifyState.isos.items():
+
+        with open("grub.d/isos/loopback.cfg", "r") as template:
+            grubcfg += template.read().replace("{name}", name.replace("iso.", '')) \
+                .replace("{file_name}", iso["file_name"]) \
+                .replace("{loopback_cfg_location}", iso["loopback_cfg_location"])
+
     pathlib.Path("/boot/grub/grub.cfg").write_text(grubcfg)
-
     shutil.copy("unicode.pf2", "/boot/grub/unicode.pf2")
-
     good("grub.cfg has been written")
 
 

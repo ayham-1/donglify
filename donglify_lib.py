@@ -13,6 +13,7 @@ DONGLE_LOCKED_BOOT_UUID = "locked_boot_uuid"
 DONGLE_UNLOCKED_BOOT_UUID = "unlocked_boot_uuid"
 
 DONGLE_INSTALL_KERNEL_NAME = "kernel_name"
+DONGLE_INSTALL_KERNEL_ARGS = "kernel_args"
 DONGLE_INSTALL_CRYPTOKEYFILE = "cryptokeyfile"
 DONGLE_INSTALL_HOOKS_ADDED = "hooks_added"
 DONGLE_INSTALL_UCODE = "ucode"

@@ -1,3 +1,4 @@
+import os
 import pathlib
 
 from donglify_lib import *
@@ -27,8 +28,7 @@ def dongle_iso_list():
 def dongle_iso_add():
     dest = "/mnt/iso"
     mount(DonglifyState.config["part_iso_uuid"], dest)
-    isos = subprocess.run(
-        f'ls {dest}', shell=True, capture_output=True).stdout.decode("utf-8").split(" ")
+    isos = os.listdir(dest)
 
     name = input("Name of the system to be added: ")
 

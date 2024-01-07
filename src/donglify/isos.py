@@ -1,8 +1,8 @@
 import os
 import pathlib
 
-from donglify_lib import *
-from donglify_grub import *
+from donglify.lib import *
+from donglify.grub import *
 
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
@@ -51,8 +51,3 @@ def dongle_iso_add():
 def dongle_iso_list_templates():
     print("available iso grub configuration templates: ")
     subprocess.run("ls grub.d/isos/", shell=True)
-
-
-if __name__ == "__main__":
-    print("this script is not to be meant run alone, use main script")
-    sys.exit(1)

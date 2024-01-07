@@ -1,10 +1,10 @@
 import pathlib
 
-from donglify_lib import *
+from donglify.lib import *
 
 
 def kernel_config_current_sys(current_install):
-    with open("templates/mkinitcpio.conf", "r") as mkinitcpioconf:
+    with open("assets/templates/mkinitcpio.conf", "r") as mkinitcpioconf:
         template = mkinitcpioconf.read()
         template = template.replace(
             "$CRYPTO_KEYFILE", current_install["cryptokeyfile"])
@@ -35,8 +35,3 @@ def kernel_config_current_sys(current_install):
     execute(cmd, desc=f'rename microcode image', needed=True, ask=True)
 
     good("kernel & initramfs should be correctly positioned in /boot for detection by 'grub-mkconfig' now")
-
-
-if __name__ == "__main__":
-    print("this script is not to be meant run alone, use main script")
-    sys.exit(1)

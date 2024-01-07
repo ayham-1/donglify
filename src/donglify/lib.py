@@ -117,7 +117,8 @@ def execute(cmd, desc="", ask=False, needed=True, dry_run=False):
 
     proc = subprocess.run(cmd, shell=True)
     if 0 != proc.returncode:
-        print(f'command failed with returncode {proc.returncode}')
+        print(
+            colored(f'command failed with returncode {proc.returncode}', 'red'))
         sys.exit(proc.returncode)
 
     return proc.returncode
@@ -235,8 +236,3 @@ def dongle_umount_all():
     lock("donglepersist")
 
     good("system mounts are now clean, safe to remove dongle")
-
-
-if __name__ == "__main__":
-    print("this script is not to be meant run alone, use main script")
-    sys.exit(1)

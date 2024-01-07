@@ -12,10 +12,10 @@ import signal
 
 from termcolor import colored
 
-from donglify_lib import *
-from donglify_mkinitcpio import *
-from donglify_grub import *
-from donglify_isos import *
+from donglify.lib import *
+from donglify.mkinitcpio import *
+from donglify.grub import *
+from donglify.isos import *
 
 
 def dongle_init_partition(dev_name):
@@ -216,7 +216,8 @@ donglify_cmds = {'mount': None, 'unmount': None, 'add': None,
                  'reinstall': None, 'update': None, 'status': None, 'list': None,
                  "iso": donglify_iso_cmds}
 
-if __name__ == "__main__":
+
+def main():
     usage = "Usage: donglify /dev/<name of usb>[index of encrypted dongleboot]\n" + \
             "       donglify init /dev/<name of usb>"
 
@@ -274,6 +275,9 @@ if __name__ == "__main__":
         sys.exit(0)
         pass
 
+
+if __name__ == "__main__":
+    main()
 
 # NOTES WHILE WORKING ON THE PROJECT
 # partitions:

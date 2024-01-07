@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "donglify"
-version = "2024.1.1"
+version = "20240107b"
 dependencies = [
     'termcolor',
     'prompt_toolkit'
@@ -16,7 +16,7 @@ authors = [
 maintainers = [
   {name = "ayham-1", email = "me@ayham.xyz"},
 ]
-description = "The ultimate Archlinux encryption USB setup."
+description = "The ultimate Archlinux encryption USB dongiled setup."
 readme = "README.md"
 license = {file = "LICENSE"}
 keywords = ["archlinux", "linux", "donglify", "usb", "encryption", "luks", "security"]

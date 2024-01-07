@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "donglify"
+version = "2024.1.1"
+dependencies = [
+
+]
+requires-python = ">=3.8"
+authors = [
+  {name = "ayham-1", email = "ayham-1"},
+]
+maintainers = [
+  {name = "ayham-1", email = "ayham-1"},
+]
+description = "The ultimate Archlinux encryption USB setup."
+readme = "README.md"
+license = {file = "LICENSE"}
+keywords = ["archlinux", "linux", "donglify", "usb", "encryption", "luks", "security"]
+
+[project.urls]
+Homepage = "https://github.com/ayham-1/donglify"

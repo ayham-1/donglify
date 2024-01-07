@@ -203,7 +203,7 @@ def dongle_safe_update():
     cmd = input("Entire your system's update command: ")
     dongle_mount_all()
     execute(cmd, "Runs user given system update command.", needed=True, ask=True)
-    kernel_config_current_sys()
+    dongle_install_system(current_install)
 
 
 donglify_iso_cmds = {
@@ -331,3 +331,6 @@ if __name__ == "__main__":
 #       - nixos-gnome
 #       - [x] KaliOS
 #       - [x] Fedora
+
+# TODO: add donglepersist mounting
+# TODO: package for makepkg

@@ -27,8 +27,5 @@ Homepage = "https://github.com/ayham-1/donglify"
 [tool.hatch.build.target.sdist.force-include]
 "donglify/donglify.py" = "src/donglify/donglify.py"
 
-[tool.hatch.build.targets.wheel.force-include]
-"assets" = "donglify/assets"
-
 [project.scripts]
 donglify = "donglify.donglify:main"

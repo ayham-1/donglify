@@ -8,6 +8,7 @@ from termcolor import colored
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
 
+
 DONGLE_EFI_UUID = "efi_uuid"
 DONGLE_LOCKED_BOOT_UUID = "locked_boot_uuid"
 DONGLE_UNLOCKED_BOOT_UUID = "unlocked_boot_uuid"
@@ -124,6 +125,14 @@ def execute(cmd, desc="", ask=False, needed=True, dry_run=False):
     return proc.returncode
 
 
+def get_asset_data(name):
+    import pkgutil
+    data = pkgutil.get_data(__name__, "assets/" + name)
+    if data is None:
+        raise Exception("could not find assets/" + name)
+    return data
+
+
 def locate_and_load_config(dev_name):
     print("attempting to locate dongle.ini")
 
@@ -236,3 +245,5 @@ def dongle_umount_all():
     lock("donglepersist")
 
     good("system mounts are now clean, safe to remove dongle")
+
+

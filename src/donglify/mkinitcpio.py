@@ -4,15 +4,14 @@ from donglify.lib import *
 
 
 def kernel_config_current_sys(current_install):
-    with open("assets/templates/mkinitcpio.conf", "r") as mkinitcpioconf:
-        template = mkinitcpioconf.read()
-        template = template.replace(
-            "$CRYPTO_KEYFILE", current_install["cryptokeyfile"])
-        template = template.replace(
-            "$HOOKS_ADDED", current_install["hooks_added"])
-        pathlib.Path("/etc/mkinitcpio.conf").write_text(template)
-        print("wrote /etc/mkinitcpio.conf")
-
+    template = get_asset_data("templates/mkinitcpio.conf").decode('utf-8')
+    template = template.replace(
+        "$CRYPTO_KEYFILE", current_install["cryptokeyfile"])
+    template = template.replace(
+        "$HOOKS_ADDED", current_install["hooks_added"])
+    pathlib.Path("/etc/mkinitcpio.conf").write_text(template)
+    print("wrote /etc/mkinitcpio.conf")
+    
     KERNEL_NAME = current_install['kernel_name']
     UCODE_NAME = current_install['ucode']
     cmd = f'pacman -S {KERNEL_NAME} {UCODE_NAME} mkinitcpio'

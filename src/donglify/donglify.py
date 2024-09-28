@@ -17,6 +17,10 @@ from donglify.mkinitcpio import *
 from donglify.grub import *
 from donglify.isos import *
 
+import importlib.metadata
+
+version = importlib.metadata.version("donglify")
+
 
 def dongle_init_partition(dev_name):
     print(colored(f"Acknowledge that the following procedure *will* destroy ALL data on '{dev_name}'\n"
@@ -28,7 +32,7 @@ def dongle_init_partition(dev_name):
         print("Farewell.")
         sys.exit(0)
 
-    cmd = f'parted {dev_name} mklabel gpt'
+    cmd = f'sudo parted {dev_name} mklabel gpt'
     execute(cmd, desc="set USB partition table as GPT")
 
     cmd = f'lsblk -n -oNAME,SIZE {dev_name}'
@@ -218,8 +222,9 @@ donglify_cmds = {'mount': None, 'unmount': None, 'add': None,
 
 
 def main():
-    usage = "Usage: donglify /dev/<name of usb>[index of encrypted dongleboot]\n" + \
-            "       donglify init /dev/<name of usb>"
+    usage = f"Version: {version}\n" + \
+        "Usage: donglify /dev/<name of usb>[index of encrypted dongleboot]\n" + \
+        "       donglify init /dev/<name of usb>"
 
     if len(sys.argv) == 3 and "init" == sys.argv[1] and '/dev/' in sys.argv[2] and len(sys.argv[2]) == len('/dev/xyz'):
         dongle_init_partition(sys.argv[2])

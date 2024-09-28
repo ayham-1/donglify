@@ -8,6 +8,12 @@ partitions. This script helps automate the configuration of encrypted `/boot`.
 And provides a solution in replacement of the `/efi` partition, which usually
 can not be encrypted, by having it be present on a USB DONGLE.
 
+## Installation
+
+```sh
+pipx install donglify
+```
+
 ## Usage
 
 To use donglify, you will need to install the initial configurations onto a

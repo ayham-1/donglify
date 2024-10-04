@@ -36,8 +36,9 @@ def dongle_init_partition(dev_name):
     execute(cmd, desc="set USB partition table as GPT")
 
     cmd = f'lsblk -n -oNAME,SIZE {dev_name}'
-    dongle_size = str(subprocess.run(cmd, shell=True, capture_output=True).stdout.decode('utf-8')) \
-        .strip().split('  ')[1].replace("G", "")
+    dongle_size = str(subprocess.run(cmd, shell=True, capture_output=True) \
+                      .stdout.decode('utf-8')).strip().split(' ')[1].replace("G", "")
+
     print("dongle has size: " + dongle_size + "GB")
 
     dongle_isos_size = int(0.5 * float(dongle_size) * 1024)
@@ -148,6 +149,7 @@ def dongle_add_current_system():
         "encryption key file to be loaded into initramfs [optional]: ")
     current_install[DONGLE_INSTALL_HOOKS_ADDED] = input(
         "hooks to be added to initramfs [optional]: ")
+    current_install[DONGLE_INSTALL_KERNEL_VERSION] = subprocess.run("uname -r", shell=True, capture_output=True).stdout.decode('utf-8').strip()
 
     DonglifyState.installs_configs[name] = current_install
     dongle_save_config()
@@ -189,6 +191,7 @@ def dongle_list_installs():
         print(f'name: {name}')
         print(f'kernel_name: {config["kernel_name"]}')
         print(f'kernel_args: {config["kernel_args"]}')
+        print(f'kernel_version: {config["kernel_version"]}')
         print(f'cryptokeyfile: {config["cryptokeyfile"]}')
         print(f'hooks_added: {config["hooks_added"]}')
         print(f'ucode: {config["ucode"]}')
@@ -222,8 +225,8 @@ donglify_cmds = {'mount': None, 'unmount': None, 'add': None,
 
 
 def main():
-    usage = f"Version: {version}\n" + \
-        "Usage: donglify /dev/<name of usb>[index of encrypted dongleboot]\n" + \
+    print(f"Version: {version}")
+    usage = f"Usage: donglify /dev/<name of usb>[index of encrypted dongleboot]\n" + \
         "       donglify init /dev/<name of usb>"
 
     if len(sys.argv) == 3 and "init" == sys.argv[1] and '/dev/' in sys.argv[2] and len(sys.argv[2]) == len('/dev/xyz'):

@@ -17,6 +17,7 @@ DONGLE_PART_ISO_UUID = "part_iso_uuid"
 DONGLE_INSTALL_NAME = "name"
 DONGLE_INSTALL_KERNEL_NAME = "kernel_name"
 DONGLE_INSTALL_KERNEL_ARGS = "kernel_args"
+DONGLE_INSTALL_KERNEL_VERSION = "kernel_version"
 DONGLE_INSTALL_CRYPTOKEYFILE = "cryptokeyfile"
 DONGLE_INSTALL_HOOKS_ADDED = "hooks_added"
 DONGLE_INSTALL_UCODE = "ucode"
@@ -73,10 +74,8 @@ def _write():
     with open("/boot/dongle.ini", 'w') as f:
         parser.write(f, space_around_delimiters=True)
 
-
 def good(msg):
     print(colored(msg, "green"))
-
 
 def does_user_accept():
     answer = str(prompt("[yes/no] > "))

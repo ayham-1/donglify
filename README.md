@@ -1,6 +1,6 @@
 # donglify
 
-The majority of Linux systems have a sever security threat. These installs are
+The majority of Linux systems have a severe security threat. These installs are
 susceptable to data theft if the install disk is stolen. ArchLinux offers LUKS
 as an encryption method to protect the root & data partitions. Even then, the
 majority of these installs omit the encryption of the `/boot` or `/efi`
@@ -52,7 +52,7 @@ added.
 ### cmd: add
 
 Adds host system configuration to the donglified USB. This configuration is
-automatically to the host system installed once established.
+automatically generation to the host system installed once established.
 
 ```sh
 donglify> add

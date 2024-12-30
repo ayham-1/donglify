@@ -8,6 +8,10 @@ from termcolor import colored
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
 
+import logging
+logger = logging.getLogger("donglify")
+logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
+
 
 DONGLE_EFI_UUID = "efi_uuid"
 DONGLE_LOCKED_BOOT_UUID = "locked_boot_uuid"
@@ -75,7 +79,13 @@ def _write():
         parser.write(f, space_around_delimiters=True)
 
 def good(msg):
-    print(colored(msg, "green"))
+    logger.info(colored(msg, "green"))
+
+def bad(msg):
+    logger.error(colored(msg, "red"))
+
+def tell(msg):
+    logger.info(colored(msg, attrs=["bold"]))
 
 def does_user_accept():
     answer = str(prompt("[yes/no] > "))
@@ -83,10 +93,8 @@ def does_user_accept():
         return True
     return False
 
-
 def disk_exists(path):
     return os.path.exists(path)
-
 
 def execute(cmd, desc="", ask=False, needed=True, dry_run=False):
     if not DonglifyState.state_ask_cmd:
@@ -112,7 +120,7 @@ def execute(cmd, desc="", ask=False, needed=True, dry_run=False):
                 sys.exit(1)
             return
     else:
-        print(colored("executing: ", "green", attrs=["bold"]) + colored(cmd, "yellow", attrs=["bold"]) +
+        logger.info(colored("executing: ", "green", attrs=["bold"]) + colored(cmd, "yellow", attrs=["bold"]) +
               colored(f' # {desc}', "dark_grey"))
 
     proc = subprocess.run(cmd, shell=True)
@@ -133,14 +141,13 @@ def get_asset_data(name):
 
 
 def locate_and_load_config(dev_name):
-    print("attempting to locate dongle.ini")
+    tell("attempting to locate dongle.ini")
 
     unlock_disk(dev_name, "dongleboot")
     mount_mapper("dongleboot", "/boot")
 
     if not pathlib.Path("/boot/dongle.ini").exists():
-        print(colored(
-            "/boot/dongle.ini does not exist, choose another device partition or run dongle init", "red"))
+        bad("/boot/dongle.ini does not exist, choose another device partition or run dongle init")
         sys.exit(1)
 
     _read()
@@ -244,5 +251,4 @@ def dongle_umount_all():
     lock("donglepersist")
 
     good("system mounts are now clean, safe to remove dongle")
-
 

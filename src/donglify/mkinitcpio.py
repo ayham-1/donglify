@@ -10,7 +10,7 @@ def kernel_config_current_sys(current_install):
     template = template.replace(
         "$HOOKS_ADDED", current_install["hooks_added"])
     pathlib.Path("/etc/mkinitcpio.conf").write_text(template)
-    print("wrote /etc/mkinitcpio.conf")
+    good("wrote /etc/mkinitcpio.conf")
     
     KERNEL_NAME = current_install['kernel_name']
     UCODE_NAME = current_install['ucode']
@@ -33,7 +33,9 @@ def kernel_config_current_sys(current_install):
     cmd = f"mv -f /boot/{UCODE_NAME}.img {new_ucode_image_path}"
     execute(cmd, desc=f'rename microcode image', needed=True, ask=True)
 
-    DonglifyState.installs_configs[current_install["name"]][DONGLE_INSTALL_KERNEL_VERSION] = subprocess.run(f"""pacman -Qi {KERNEL_NAME} | grep -Po '^Version\s*: \K.+'""", shell=True, capture_output=True).stdout.decode('utf-8').strip()
+    DonglifyState.installs_configs[current_install["name"]][DONGLE_INSTALL_KERNEL_VERSION] =  \
+        subprocess.run(f"""pacman -Qi {KERNEL_NAME} | grep -Po '^Version\s*: \K.+'""", 
+                       shell=True, capture_output=True) .stdout.decode('utf-8').strip()
     dongle_save_config()
 
     good("kernel & initramfs should be correctly positioned in /boot for detection by 'grub-mkconfig' now")

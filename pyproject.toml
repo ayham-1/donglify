@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "donglify"
-version = "20241004"
+version = "20241230"
 dependencies = [
     'termcolor',
     'prompt_toolkit'

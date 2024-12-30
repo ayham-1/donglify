@@ -2,12 +2,8 @@
 
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import NestedCompleter
-import os
 import sys
 import subprocess
-import stat
-import pathlib
-import configparser
 import signal
 
 from termcolor import colored
@@ -17,9 +13,6 @@ from donglify.mkinitcpio import *
 from donglify.grub import *
 from donglify.isos import *
 
-import importlib.metadata
-
-version = importlib.metadata.version("donglify")
 
 
 def dongle_init_partition(dev_name):
@@ -129,7 +122,7 @@ def dongle_init_partition(dev_name):
 
     subprocess.run("lsblk -f", shell=True)
     good("dongle's partition initialization done")
-    print("you are recommended to start adding system installs onto your dongle")
+    tell("you are recommended to start adding system installs onto your dongle")
     sys.exit(0)
 
 
@@ -154,7 +147,7 @@ def dongle_add_current_system():
     DonglifyState.installs_configs[name] = current_install
     dongle_save_config()
 
-    print("adding current host system to donglify")
+    tell("adding current host system to donglify")
     dongle_umount_all()
     ensure_local_dirs_mountpoint_only()
 
@@ -164,7 +157,7 @@ def dongle_add_current_system():
 def dongle_reinstall_system():
     name = select_dongle_install()
     if name == "":
-        print("no available system configurations to reinstall")
+        bad("no available system configurations to reinstall")
         return
 
     current_install = DonglifyState.installs_configs[name]
@@ -181,10 +174,10 @@ def dongle_install_system(current_install):
 
 def dongle_list_installs():
     if len(DonglifyState.installs_configs) == 0:
-        print("no system installs on dongle")
+        bad("no system installs on dongle")
         return
 
-    print("listing registered installs on dongle")
+    tell("listing registered installs on dongle")
 
     for name, config in DonglifyState.installs_configs.items():
         print()
@@ -201,7 +194,7 @@ def dongle_list_installs():
 def dongle_safe_update():
     name = select_dongle_install()
     if name == "":
-        print("no available installs, try the 'add' command first")
+        bad("no available installs, try the 'add' command first")
 
     global current_install
     current_install = DonglifyState.installs_configs[name]
@@ -225,7 +218,10 @@ donglify_cmds = {'mount': None, 'unmount': None, 'add': None,
 
 
 def main():
+    import importlib.metadata
+    version = importlib.metadata.version("donglify")
     print(f"Version: {version}")
+
     usage = f"Usage: donglify /dev/<name of usb>[index of encrypted dongleboot]\n" + \
         "       donglify init /dev/<name of usb>"
 
@@ -268,6 +264,9 @@ def main():
                 dongle_reinstall_system()
             elif user_input == 'update':
                 dongle_safe_update()
+            elif user_input == 'iso': 
+                print(colored("available iso commands: " +
+                  ' '.join(donglify_iso_cmds), 'dark_grey'))
             elif user_input == 'iso list':
                 dongle_iso_list()
             elif 'iso add' in user_input:

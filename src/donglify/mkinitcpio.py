@@ -2,8 +2,9 @@ import pathlib
 
 from donglify.lib import *
 
+import importlib.resources
 
-def kernel_config_current_sys(current_install):
+def setup_mkinitcpio_config(current_install):
     template = get_asset_data("templates/mkinitcpio.conf").decode('utf-8')
     template = template.replace(
         "$CRYPTO_KEYFILE", current_install["cryptokeyfile"])
@@ -11,7 +12,31 @@ def kernel_config_current_sys(current_install):
         "$HOOKS_ADDED", current_install["hooks_added"])
     pathlib.Path("/etc/mkinitcpio.conf").write_text(template)
     good("wrote /etc/mkinitcpio.conf")
+
+    hook = get_asset_data("sd-sulogin.initramfs.hook").decode('utf-8')
+    pathlib.Path("/etc/initcpio/install/sd-sulogin").write_text(hook)
+    good("wrote /etc/initcpio/install/sd-sulogin")
+
+    shadow = get_asset_data("shadow.initramfs").decode('utf-8')
+    pathlib.Path("/etc/shadow.initramfs").write_text(shadow)
+    good("wrote /etc/shadow.initramfs")
+
+
+# TODO: do real cleanup
+def clean_mkinitcpio_config(current_install):
+    cmd = "rm /etc/mkinitcpio.conf"
+    execute(cmd, desc=f'remove /etc/mkinitcpio.conf', needed=False, ask=True)
     
+    cmd = "rm /etc/initcpio/install/sd-sulogin"
+    execute(cmd, desc=f'remove /etc/initcpio/install/sd-sulogin', needed=False, ask=True)
+
+    cmd = "rm /etc/shadow.initramfs"
+    execute(cmd, desc=f'remove /etc/shadow.initramfs', needed=False, ask=True)
+
+    
+def kernel_config_current_sys(current_install):
+    setup_mkinitcpio_config(current_install)
+        
     KERNEL_NAME = current_install['kernel_name']
     UCODE_NAME = current_install['ucode']
     cmd = f'pacman -S --noconfirm {KERNEL_NAME} {UCODE_NAME} mkinitcpio'
@@ -39,3 +64,5 @@ def kernel_config_current_sys(current_install):
     dongle_save_config()
 
     good("kernel & initramfs should be correctly positioned in /boot for detection by 'grub-mkconfig' now")
+
+    clean_mkinitcpio_config(current_install)

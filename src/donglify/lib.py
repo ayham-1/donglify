@@ -132,8 +132,8 @@ def execute(cmd, desc="", ask=False, needed=True, dry_run=False):
     return proc.returncode
 
 
+import pkgutil
 def get_asset_data(name):
-    import pkgutil
     data = pkgutil.get_data(__name__, "assets/" + name)
     if data is None:
         raise Exception("could not find assets/" + name)

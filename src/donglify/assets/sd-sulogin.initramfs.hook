@@ -1,0 +1,10 @@
+#!/bin/bash
+
+build() {
+    # root shadow is needed for rd.emergency target
+    add_file /etc/shadow.initramfs
+}
+
+help() {
+    echo Add root shadow file for sulogin.
+}

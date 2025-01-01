@@ -1,2 +1,3 @@
 termcolor
 prompt_toolkit
+pydantic

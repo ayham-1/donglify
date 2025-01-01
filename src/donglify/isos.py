@@ -7,10 +7,7 @@ from donglify.grub import *
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
 
-
-def _dongle_iso_select_template():
-    pass
-
+from donglify.config import *
 
 def dongle_iso_list():
     if len(DonglifyState.isos.items()) == 0:
@@ -20,32 +17,29 @@ def dongle_iso_list():
     for name, iso in DonglifyState.isos.items():
         print()
         print(f'name: {name}')
-        print(f'file_name: {iso["file_name"]}')
-        print(f'loopback_cfg_location: {iso["loopback_cfg_location"]}')
-        print()
+        print(f'file_name: {iso.file_name}')
+        print(f'loopback_cfg_location: {iso.loopback_cfg_location}')
 
 
 def dongle_iso_add():
     dest = "/mnt/iso"
-    mount(DonglifyState.config["part_iso_uuid"], dest)
+    mount(DonglifyState.config.part_iso_uuid, dest)
     isos = os.listdir(dest)
 
     name = input("Name of the system to be added: ")
 
-    iso = {}
-    iso["file_name"] = prompt(
-        "Filename of the iso on ISOs partition (must be in root of ISOs partition): ",
-        completer=WordCompleter(isos))
+    iso: DongleISO = DongleISOValidator.validate_python({
+        "file_name": prompt(
+            "Filename of the iso on ISOs partition (must be in root of ISOs partition): ",
+            completer=WordCompleter(isos)),
+        "loopback_cfg_location": input(
+            "loopback.cfg location in ISO [/boot/grub/loopback.cfg]: ") or "/boot/grub/loopback.cfg"
+    })
 
-    iso["loopback_cfg_location"] = input(
-        "loopback.cfg location in ISO [/boot/grub/loopback.cfg]: ")
-    if iso["loopback_cfg_location"] == "":
-        iso["loopback_cfg_location"] = "/boot/grub/loopback.cfg"
-
-    DonglifyState.isos["iso." + name] = iso
+    DonglifyState.isos[name] = iso
 
     grub_config_install()
-    dongle_save_config()
+    DonglifyState.write()
 
 
 def dongle_iso_list_templates():

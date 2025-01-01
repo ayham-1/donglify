@@ -12,7 +12,7 @@ from donglify.lib import *
 from donglify.mkinitcpio import *
 from donglify.grub import *
 from donglify.isos import *
-
+from donglify.config import *
 
 
 def dongle_init_partition(dev_name):
@@ -57,68 +57,68 @@ def dongle_init_partition(dev_name):
     current_offset = 8
     parted = "parted -a optimal"
     cmd = f'{parted} {dev_name} mkpart "DONGLE_EFI" fat32 {str(current_offset)}MB 256MB'
-    execute(cmd, desc="create efi partition on dongle", needed=True, ask=False)
+    execute(cmd, desc="create efi partition on dongle")
 
     cmd = f'{parted} {dev_name} set 1 esp on'
-    execute(cmd, desc="mark /efi as esp", needed=True, ask=False)
+    execute(cmd, desc="mark /efi as esp")
 
     current_offset += 256 + 8
     cmd = f'{parted} {dev_name} mkpart "DONGLE_BOOT" {str(current_offset)}MB {str(2048 + current_offset)}MB'
-    execute(cmd, desc="create boot partition on dongle", needed=True, ask=False)
+    execute(cmd, desc="create boot partition on dongle")
 
     cmd = f'{parted} {dev_name} set 2 boot on'
-    execute(cmd, desc="mark /boot as boot", needed=True, ask=False)
+    execute(cmd, desc="mark /boot as boot")
 
     current_offset += 2048 + 8
     if iso_size != 0:
         cmd = f'{parted} {dev_name} mkpart "DONGLE_ISOs" {str(current_offset)}MB {str(dongle_isos_size + current_offset)}MB'
-        execute(cmd, desc="create ISOs partition on dongle",
-                needed=True, ask=False)
+        execute(cmd, desc="create ISOs partition on dongle")
         current_offset += dongle_isos_size + 8
 
     if persistent_size != 0:
         cmd = f'{parted} {dev_name} mkpart "DONGLE_PERSISTENT" {str(current_offset)}MB 100%'
-        execute(cmd, desc="create persistent partition on dongle",
-                needed=True, ask=False)
+        execute(cmd, desc="create persistent partition on dongle")
 
     cmd = f'mkfs.vfat -n DONGLE_EFI  -F 32 {dev_name}1'
-    execute(cmd, desc="format DONGLE_EFI as FAT16", needed=True, ask=False)
+    execute(cmd, desc="format DONGLE_EFI as FAT16")
 
     cmd = f'cryptsetup luksFormat --type luks1 {dev_name}2'
-    execute(cmd, desc="encrypt dongle's /boot partition, user will be asked for passphrase automatically",
-            needed=True, ask=False)
+    execute(cmd, desc="encrypt dongle's /boot partition, user will be asked for passphrase automatically")
 
     unlock_disk(f'{dev_name}2', "dongleboot")
 
     cmd = f'mkfs.ext4 /dev/mapper/dongleboot'
-    execute(cmd, desc="format dongle's /boot partition as ext4",
-            needed=True, ask=False)
+    execute(cmd, desc="format dongle's /boot partition as ext4")
 
     cmd = f'mkfs.ext4 {dev_name}3'
-    execute(cmd, desc="format dongle's ISOs partition as ext4",
-            needed=False, ask=False)
+    execute(cmd, desc="format dongle's ISOs partition as ext4")
 
     cmd = f'cryptsetup luksFormat --type luks2 {dev_name}4'
-    execute(cmd, desc="encrypt dongle's persistent partition, user will be asked for passphrase automatically",
-            needed=False, ask=False)
+    execute(cmd, desc="encrypt dongle's persistent partition, user will be asked for passphrase automatically")
 
     unlock_disk(f'{dev_name}4', "donglepersist")
     cmd = f'mkfs.ext4 /dev/mapper/donglepersist'
-    execute(cmd, desc="format dongle's persistent partition",
-            needed=False, ask=False)
+    execute(cmd, desc="format dongle's persistent partition")
 
     # find uuids and fill into /boot/dongle.ini
-    DonglifyState.config["efi_uuid"] = get_uuid_by_dev(f'{dev_name}1')
-    DonglifyState.config["locked_boot_uuid"] = get_uuid_by_dev(f'{dev_name}2')
-    DonglifyState.config["unlocked_boot_uuid"] = get_uuid_by_dev(
-        "/dev/mapper/dongleboot")
-    DonglifyState.config["part_iso_uuid"] = get_uuid_by_dev(f'{dev_name}3')
+    data = {
+        "config": {
+            "version": DonglifyState.LATEST_VERSION,
+            "efi_uuid": get_uuid_by_dev(f'{dev_name}1'),
+            "locked_boot_uuid": get_uuid_by_dev(f'{dev_name}2'),
+            "unlocked_boot_uuid": get_uuid_by_dev("/dev/mapper/dongleboot"),
+            "part_iso_uuid": get_uuid_by_dev(f'{dev_name}3'),
+        },
+        "installs": {},
+        "isos": {}
+    }
+    DonglifyState.init(data)
 
     # grub-install
     dongle_mount_all()
     grub_encrypted_install()
 
-    dongle_save_config()
+    DonglifyState.write()
 
     subprocess.run("lsblk -f", shell=True)
     good("dongle's partition initialization done")
@@ -130,28 +130,23 @@ def dongle_add_current_system():
     print("Fill configs for current system:")
 
     name = input("install name, shown on GRUB: ")
-    current_install = {}
-    current_install["name"] = name
-    current_install[DONGLE_INSTALL_KERNEL_NAME] = input(
-        "kernel package name [linux/-hardened/-lts/..]: ")
-    current_install[DONGLE_INSTALL_KERNEL_ARGS] = input(
-        "kernel args [optional]: ")
-    current_install[DONGLE_INSTALL_UCODE] = input(
-        "microcode package to be installed [intel-ucode/amd-ucode]: ")
-    current_install[DONGLE_INSTALL_CRYPTOKEYFILE] = input(
-        "encryption key file to be loaded into initramfs [optional]: ")
-    current_install[DONGLE_INSTALL_HOOKS_ADDED] = input(
-        "hooks to be added to initramfs [optional]: ")
-    current_install[DONGLE_INSTALL_KERNEL_VERSION] = subprocess.run("uname -r", shell=True, capture_output=True).stdout.decode('utf-8').strip()
+    current_install: DongleInstall = DongleInstallValidator.validate_python({
+        "kernel_name": input("kernel package name [linux/-hardened/-lts/..]: "),
+        "kernel_args": input("kernel args [optional]: "),
+        "ucode": input("microcode package to be installed [intel-ucode/amd-ucode]: "),
+        "cryptokeyfile": input("encryption key file to be loaded into initramfs [optional]: "),
+        "hooks_added": input("hooks to be added to initramfs [optional]: "),
+        "kernel_version": subprocess.run("uname -r", shell=True, capture_output=True).stdout.decode('utf-8').strip()
+    })
 
-    DonglifyState.installs_configs[name] = current_install
-    dongle_save_config()
+    DonglifyState.installs[name] = current_install
+    DonglifyState.write()
 
     tell("adding current host system to donglify")
     dongle_umount_all()
     ensure_local_dirs_mountpoint_only()
 
-    dongle_install_system(current_install)
+    dongle_install_system(name)
 
 
 def dongle_reinstall_system():
@@ -160,35 +155,44 @@ def dongle_reinstall_system():
         bad("no available system configurations to reinstall")
         return
 
-    current_install = DonglifyState.installs_configs[name]
-    current_install["name"] = name
-
-    dongle_install_system(current_install)
+    dongle_install_system(name)
 
 
-def dongle_install_system(current_install):
+def dongle_install_system(current_install_name: str):
     dongle_mount_all()
-    kernel_config_current_sys(current_install)
+    kernel_config_current_sys(current_install_name)
     grub_config_install()
 
 
 def dongle_list_installs():
-    if len(DonglifyState.installs_configs) == 0:
+    if len(DonglifyState.installs) == 0:
         bad("no system installs on dongle")
         return
 
     tell("listing registered installs on dongle")
 
-    for name, config in DonglifyState.installs_configs.items():
+    for name, config in DonglifyState.installs.items():
         print()
         print(f'name: {name}')
-        print(f'kernel_name: {config["kernel_name"]}')
-        print(f'kernel_args: {config["kernel_args"]}')
-        print(f'kernel_version: {config["kernel_version"]}')
-        print(f'cryptokeyfile: {config["cryptokeyfile"]}')
-        print(f'hooks_added: {config["hooks_added"]}')
-        print(f'ucode: {config["ucode"]}')
-        print()
+        print(f'kernel_name: {config.kernel_name}')
+        print(f'kernel_args: {config.kernel_args}')
+        print(f'kernel_version: {config.kernel_version}')
+        print(f'cryptokeyfile: {config.cryptokeyfile}')
+        print(f'hooks_added: {config.hooks_added}')
+        print(f'ucode: {config.ucode}')
+
+
+def select_dongle_install():
+    names = list(DonglifyState.installs.keys())
+
+    if len(names) == 0:
+        return ""
+
+    print("Select from available dongle install names:\n\t" +
+          colored(' '.join(names), 'green'))
+
+    return prompt("select> ", completer=WordCompleter(names, ignore_case=False))
+
 
 
 def dongle_safe_update():
@@ -196,15 +200,17 @@ def dongle_safe_update():
     if name == "":
         bad("no available installs, try the 'add' command first")
 
-    global current_install
-    current_install = DonglifyState.installs_configs[name]
-    current_install["name"] = name
-
-    cmd = input("Entire your system's update command: ")
+    cmd = input("Enter your system's update command: ")
     dongle_mount_all()
-    execute(cmd, "Runs user given system update command.", needed=True, ask=True)
-    dongle_install_system(current_install)
+    execute(cmd, "Runs user given system update command.")
+    dongle_install_system(name)
 
+def dongle_mount_all():
+    mount(DonglifyState.config.efi_uuid, "/efi")
+    unlock(DonglifyState.config.locked_boot_uuid, "dongleboot")
+    mount(DonglifyState.config.unlocked_boot_uuid, "/boot")
+    mount(DonglifyState.config.part_iso_uuid, "/mnt/iso")
+    good("mounted all necessarily points from donglified usb")
 
 donglify_iso_cmds = {
     "list": None,
@@ -240,14 +246,13 @@ def main():
 
     print("Welcome to donglify!")
 
-    locate_and_load_config(sys.argv[1])
-
     try:
+        DonglifyState.locate_and_load_config(sys.argv[1])
+        dongle_mount_all()
         while 1:
             print(colored("available commands: " +
                   ' '.join(donglify_cmds), 'dark_grey'))
-            user_input = prompt("donglify> ", completer=NestedCompleter.from_nested_dict(
-                donglify_cmds))
+            user_input = prompt("donglify> ", completer=NestedCompleter.from_nested_dict(donglify_cmds))
             if user_input == 'status':
                 subprocess.run("lsblk", shell=True)
             elif user_input == 'list':
